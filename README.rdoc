@@ -1,0 +1,65 @@
+= sequel-voting by Kinetic Cafe
+
+code :: https://github.com/KineticCafe/sequel-voting/
+issues :: https://github.com/KineticCafe/sequel-voting/issues
+docs :: http://www.rubydoc.info/github/KineticCafe/sequel-voting/master
+continuous integration :: {<img src="https://travis-ci.org/KineticCafe/sequel-voting.svg?branch=master" alt="Build Status" />}[https://travis-ci.org/KineticCafe/sequel-voting]
+
+== Description
+
+Sequel-voting provides a reliable two-way polymorphic scoped voting mechanism.
+
+=== Overview
+
+-   Two-way polymorphic: any model can be a voter or a votable.
+-   Scoped: multiple votes can be recorded for a votable, under different
+    scopes.
+
+It is an opinionated port of
+{acts_as_votable}[https://github.com/ryanto/acts_as_votable] to Sequel. It is
+*not* table-compatible with acts_as_votable, neither in the +votes+ table,
+nor in the caching support for votable objects.
+
+== Synopsis
+
+    class Post < Sequel::Model
+      plugin :votable
+    end
+
+    class User < Sequel::Model
+      plugin :voter
+    end
+
+    post = Post.create(title: 'My amazing post!')
+    post.vote_by current_user # An up-vote by current_user!
+    post.votes_for_dataset.count # => 1
+    current_user.votes_by_dataset.count # => 1
+    current_user.unvote_for post # Remove the vote! :(
+    post.votes_for_dataset.any? # => false
+    current_user.votes_by_dataset.none? # => true
+
+=== API Differences with acts_as_votable
+
+There are a number of API differences between acts_as_votable and
+sequel-voting:
+
+1.  There are no method aliases provided for natural reading. Votables
+    #vote_by, #vote_up_by, or #vote_down_by. Voters #vote_for, #vote_up_for, or
+    #vote_down_for. There is no 'liking'. That’s a presentational matter for
+    the view layer, not the model layer.
+
+2.  Method names have been made consistent across Voter and Votable. Votables
+    have #votes_for, and ask or do <tt>*_by</tt> a voter. Voters have
+    #votes_by, and ask or do <tt>*_for</tt> a votable.
+
+3.  Arbitrary models *cannot* be votables on or be voters. They must be tagged
+    as votable or voter with the appropriate `plugin` line.
+
+4.  Votables can, like acts_as_votable, cache summary data about the votes made
+    for the votable. This is enabled with a *single* JSON column per Votable,
+    cached_vote_summary.
+
+5.  Vote scopes are completely isolated. The default vote scope is completely
+    independent of explicit vote scopes. (This may change before release.)
+
+6.  Duplicate vote support will probably be removed before release.

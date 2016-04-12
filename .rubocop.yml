@@ -199,6 +199,7 @@ Rails/HasAndBelongsToMany:
 Style/FileName:
   Exclude:
     - Gemfile
+    - lib/sequel-voting.rb
 
 Style/SpaceBeforeFirstArg:
   Exclude:
@@ -230,9 +231,6 @@ Style/RedundantSelf:
 
 Style/SignalException:
   EnforcedStyle: semantic
-
-Style/FrozenStringLiteralComment:
-  Enabled: false
 
 Style/Alias:
   EnforcedStyle: prefer_alias_method
