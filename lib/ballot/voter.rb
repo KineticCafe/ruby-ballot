@@ -53,6 +53,50 @@ module Ballot
     # <em>Alias for: #cast_ballot_for.</em>
 
     ##
+    # Create, update, and remove votes for a lot of Votable objects in a single
+    # transaction. All of the votes for the votables in +up+ or +down+ will be
+    # set to the same weight and scope, and all of the votes for the votables
+    # in +remove+ will be removed.
+    #
+    # The votables in +up+, +down+, and +remove+ can be described in several
+    # ways:
+    #
+    # * as an Array of Votable objects;
+    #       up: [ votable1, votable2, votable3 ]
+    # * as an Array of Hashes with Votable type names to id;
+    #       up: [ { Votable: 1 }, { Votable: 2 } ]
+    # * as a Hash of Votable type names to an array of ids;
+    #       up: { Votable: [ 1, 2 ] }
+    # * as a Hash of +votable_gid+ to an array of GlobalID parameters.
+    #
+    # Some verification is performed to ensure that a single votable is not
+    # represented in more than one collection. The votes are recorded as
+    # follows:
+    #
+    # 1.  Remove the ballots against the votables in +remove+;
+    # 2.  For votables in +down+:
+    #     1.  Update existing ballots as down-votes;
+    #     2.  Insert new down-vote ballots.
+    # 3.  For votables in +up+:
+    #     1.  Update existing ballots as up-votes;
+    #     2.  Insert new up-vote ballots.
+    #
+    # The return value is a hash with the following structure:
+    #
+    #     {
+    #       success: true, # or false if not successful
+    #       exception: nil, # or an exception describing the failure
+    #       up: 3, # the number of ballots added as or changed to up votes
+    #       down: 3, # the number of ballots added as or changed to down votes
+    #       remove: 0, # the number of ballots removed
+    #     }
+    #
+    # The values of +up+, +down+, and +remove+ will be +nil+ if the transaction
+    # was not successful.
+    def cast_ballot_for_batch(up: [], down: [], remove: [], weight: 1, scope: nil)
+    end
+
+    ##
     # Records a positive vote by this Voter on the provided +votable+ with
     # options provided in +kwargs+. Any value passed to the +vote+ keyword
     # argument will be ignored. See #cast_ballot_for for more details.
