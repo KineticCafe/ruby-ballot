@@ -5,7 +5,14 @@
 .source_index
 .vagrant
 Gemfile.lock
+gemfiles/*.lock
 coverage/
 doc/
 pkg/
 tmp/
+.bundle/
+*.sqlite3
+test/generators/rails-*/log/development.log
+test/generators/rails-*/db/migrate/
+test/generators/rails-*/db/schema.rb
+test/generators/rails-*/app/models/

@@ -1,20 +1,23 @@
+# frozen_string_literal: true
+
 source 'https://rubygems.org'
 
 # Specify your gem's dependencies in acts_as_votable.gemspec
 gemspec
 
-gem 'byebug'
-# gem 'sequel_polymorphic', path: '../sequel_polymorphic'
+platforms :jruby do
+  gem 'jdbc-sqlite3'
+  gem 'activerecord-jdbcsqlite3-adapter'
+end
 
-# rails_version = ENV['RAILS_VERSION'] || 'default'
+platforms :mri do
+  gem 'sqlite3'
+end
 
-# rails = case rails_version
-# when 'master'
-#   { :github => 'rails/rails'}
-# when 'default'
-#   '~> 3.2.0'
-# else
-#   "~> #{rails_version}"
-# end
+gem 'sequel'
 
-# gem 'rails', rails
+group :local_development, :test do
+  gem 'appraisal', '~> 2.0'
+  gem 'byebug', platforms: :mri
+  gem 'pry'
+end

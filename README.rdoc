@@ -1,13 +1,14 @@
-= sequel-voting by Kinetic Cafe
+= Ballot by Kinetic Cafe
 
-code :: https://github.com/KineticCafe/sequel-voting/
-issues :: https://github.com/KineticCafe/sequel-voting/issues
-docs :: http://www.rubydoc.info/github/KineticCafe/sequel-voting/master
-continuous integration :: {<img src="https://travis-ci.org/KineticCafe/sequel-voting.svg?branch=master" alt="Build Status" />}[https://travis-ci.org/KineticCafe/sequel-voting]
+code :: https://github.com/KineticCafe/ruby-ballot/
+issues :: https://github.com/KineticCafe/ruby-ballot/issues
+docs :: http://www.rubydoc.info/github/KineticCafe/ruby-ballot/master
+continuous integration :: {<img src="https://travis-ci.org/KineticCafe/ruby-ballot.svg?branch=master" alt="Build Status" />}[https://travis-ci.org/KineticCafe/ruby-ballot]
 
 == Description
 
-Sequel-voting provides a reliable two-way polymorphic scoped voting mechanism.
+Ballot provides a two-way polymorphic scoped voting mechanism for both
+ActiveRecord (4 or later) and Sequel (4 or later).
 
 === Overview
 
@@ -15,51 +16,249 @@ Sequel-voting provides a reliable two-way polymorphic scoped voting mechanism.
 -   Scoped: multiple votes can be recorded for a votable, under different
     scopes.
 
-It is an opinionated port of
-{acts_as_votable}[https://github.com/ryanto/acts_as_votable] to Sequel. It is
-*not* table-compatible with acts_as_votable, neither in the +votes+ table,
-nor in the caching support for votable objects.
+Ballot started as an opinionated port of
+{acts_as_votable}[https://github.com/ryanto/acts_as_votable] to
+{Sequel}[http://sequel.jeremyevans.net/]. As the port formed, we made
+aggressive changes to both the data models and API which we wanted to share
+between our various applications, whether they used ActiveRecord or Sequel. The
+design decisions made here may not suit your needs, and we heartily recommend
+acts\_as\_votable if they do not.
+
+Ballot has been written to be able to coexist with acts\_as\_votable.
+
+Ballot does not provide a direct migration from acts\_as\_votable; it uses a
+different table (+ballot_votes+), so can coexist with acts\_as\_votable.
 
 == Synopsis
 
+The API for Ballot is consistent for both ActiveRecord and Sequel.
+
+=== ActiveRecord
+
+    class Post < ActiveRecord::Base
+      acts_as_ballot :votable # or acts_as_ballot_votable
+    end
+
+    class User < ActiveRecord::Base
+      acts_as_ballot :voter # or acts_as_ballot_voter
+    end
+
+    post = Post.create(name: 'My amazing post!')
+    current_user.cast_ballot_for post # An up-vote by current_user!
+    post.ballots_for.count # => 1
+    current_user.ballots_by.count # => 1
+    current_user.remove_ballot_for post # Remove the vote! :(
+    post.ballots_for.any? # => false
+    current_user.ballots_by.none? # => true
+
+=== Sequel
+
     class Post < Sequel::Model
-      plugin :votable
+      plugin :ballot_votable
+      # or acts_as_ballot :votable or acts_as_ballot_votable
     end
 
     class User < Sequel::Model
-      plugin :voter
+      plugin :ballot_voter
+      # or acts_as_ballot :voter or acts_as_ballot_voter
     end
 
     post = Post.create(title: 'My amazing post!')
-    post.vote_by current_user # An up-vote by current_user!
-    post.votes_for_dataset.count # => 1
-    current_user.votes_by_dataset.count # => 1
-    current_user.unvote_for post # Remove the vote! :(
-    post.votes_for_dataset.any? # => false
-    current_user.votes_by_dataset.none? # => true
+    current_user.cast_ballot_for post # An up-vote by current_user!
+    post.ballots_for_dataset.count # => 1
+    current_user.ballots_by_dataset.count # => 1
+    current_user.remove_ballot_for post # Remove the vote! :(
+    post.ballots_for_dataset.any? # => false
+    current_user.ballots_by_dataset.none? # => true
 
-=== API Differences with acts_as_votable
+=== Exploring the API
 
-There are a number of API differences between acts_as_votable and
-sequel-voting:
+==== Ballot Words
 
-1.  There are no method aliases provided for natural reading. Votables
-    #vote_by, #vote_up_by, or #vote_down_by. Voters #vote_for, #vote_up_for, or
-    #vote_down_for. There is no 'liking'. That’s a presentational matter for
-    the view layer, not the model layer.
+Unless otherwise specified, votes are positive. This can be specified by using
+the `vote` parameter, which will be parsed through Ballot::Words#truthy? for
+interpretation.
 
-2.  Method names have been made consistent across Voter and Votable. Votables
-    have #votes_for, and ask or do <tt>*_by</tt> a voter. Voters have
-    #votes_by, and ask or do <tt>*_for</tt> a votable.
+    # All of these mean the same thing
+    post.ballot_by current_user, vote: 'bad'
+    post.ballot_by current_user, vote: '0'
+    post.ballot_by current_user, vote: 'false'
+    post.ballot_by current_user, vote: false
+    post.ballot_by current_user, vote: -1
+    post.down_ballot_by current_user
+    current_user.cast_down_ballot_for(post)
 
-3.  Arbitrary models *cannot* be votables on or be voters. They must be tagged
-    as votable or voter with the appropriate `plugin` line.
+==== Scoped Votes
 
-4.  Votables can, like acts_as_votable, cache summary data about the votes made
-    for the votable. This is enabled with a *single* JSON column per Votable,
-    cached_vote_summary.
+Scopes provide _purpose_ or _reasons_ for votes. These are isolated vote
+collections. One could emulate Facebook reactions with scopes:
 
-5.  Vote scopes are completely isolated. The default vote scope is completely
-    independent of explicit vote scopes. (This may change before release.)
+    current_user.ballot_for post # default, unspecified scope
+    current_user.ballot_for post, scope: 'love' # 'love' scope
+    current_user.ballot_for post, scope: 'haha' # 'haha' scope
+    current_user.ballot_for post, scope: 'wow' # 'wow' scope
+    current_user.ballot_for post, scope: 'sad' # 'sad' scope
+    current_user.ballot_for post, scope: 'angry' # 'angry' scope
 
-6.  Duplicate vote support will probably be removed before release.
+Ballot does not provide uniqueness across scopes so that a voter can only have
+one reaction to a votable.
+
+Queries are segregated by scopes as well:
+
+    current_user.cast_ballot_for? post # default, unspecified scope
+    current_user.cast_ballot_for? post, scope: 'love' # 'love' scope
+
+==== Weighted Votes
+
+Votes may be weighted so that some votes count more than others (the default
+weight is 1). This affects the _score_ of ballots, which is a distinct concept
+from the _count_ of ballots.
+
+    current_user.cast_ballot_for post, weight: 2
+    post.total_ballots # => 1
+    post.ballot_score # => 2
+
+==== Registered Votes and Duplicate Votes
+
+By default, voters can only vote a particular once per model in a given vote
+scope.
+
+    current_user.cast_ballot_for post
+    current_user.cast_ballot_for post
+    post.total_ballots # => 1
+
+A votable can be checked after voting to see if the vote counted; this is true
+only when a vote has been _created_ or _changed_.
+
+    current_user.cast_ballot_for post
+    post.vote_registered? # => true
+    current_user.cast_ballot_for post
+    post.vote_registered? # => false
+    current_user.cast_down_ballot_for post
+    post.vote_registered? # => true
+    post.total_ballots # => 1
+
+Duplicate votes may be permitted through the use of the keyword argument
++duplicate+ when casting the vote:
+
+    current_user.cast_ballot_for post
+    post.vote_registered? # => true
+    current_user.cast_ballot_for post, duplicate: true
+    post.vote_registered? # => true
+    current_user.cast_down_ballot_for post, duplicate: true
+    post.vote_registered? # => true
+    post.total_ballots # => 3
+
+Not all methods properly handle duplicate votes (as the
+<tt>post.total_ballots</tt> line demonstrates), and it has a negative impact on
+performance at a large enough scale. Its use is discouraged.
+
+==== Cached Ballot Summary
+
+Performance for some common queries can be sped up by adding a JSON field to a
+Votable model, +cached_ballot_summary+. This is updated after each vote on a
+votable. When added, this caches the results for *all* vote scopes.
+
+    user1.cast_ballot_for post, weight: 4
+    user2.cast_ballot_for post, vote: false
+    post.total_ballots # => 2
+    post.total_up_ballots # => 1
+    post.total_down_ballots # => 1
+    post.ballot_score # => 0
+    post.weighted_ballot_total # => 5
+    post.weighted_ballot_score # => 3
+    post.weighted_ballot_average # => 1.5
+
+=== API Differences with acts\_as\_votable
+
+There are a number of API differences between acts\_as\_votable and
+Ballot:
+
+1.  Ballot has an orthogonal API between Votable and Voter objects. Votable
+    objects receive <tt>#ballot_by</tt> to cast a vote, Voter objects receive
+    <tt>#cast_ballot_for</tt> to cast a vote (or <tt>#ballot_for</tt>). None of
+    the aliases added by acts\_as\_votable exist in Ballot.
+
+2.  Votable objects are associated on <tt>#ballots_for</tt> (themselves) and
+    ask whether a ballot was cast <tt>*_by</tt> Voter objects. Voter objects
+    are associated on <tt>#ballots_by</tt> (themselves) and ask whether a
+    ballot was cast <tt>*_for</tt> Votable objects.
+
+3.  Validation is performed on the votables or voters passed to vote methods,
+    ensuring that the object is a Votable or a Voter.
+
+4.  Votables can cache summary data about votes made for the votable, enabled
+    with a *single* JSON column per votable, +cached_ballot_summary+. It
+    implicitly provides caching for all scopes.
+
+5.  Vote scopes are completely isolated, even on queries. The _unspecified_
+    (default) vote scope is independent of named vote scopes. Under
+    acts\_as\_votable, you could ask <tt>votable.voted_on_by?(voter)</tt> and
+    the answer would be provided without regard to the vote scope. This is not
+    supported by Ballot, where the same question
+    (<tt>votable.ballot_by?(voter)</tt>) is explicitly in the _unspecified_
+    vote scope. If this behaviour is required, it is easy enough to ask
+    using query methods provided by \ActiveRecord or \Sequel:
+
+        # ActiveRecord
+        votable.ballots_for(voter_id: voter.id, voter_type: voter.type).any?
+        # Sequel
+        votable.ballots_for_dataset(voter_id: voter.id, voter_type: voter.type).any?
+
+== Planned Improvements
+
+* Batch voting.
+
+== Install
+
+Add Ballot to your Gemfile:
+
+    gem 'ballot', '~> 1.0'
+
+Or manually install:
+
+    % gem install ballot
+
+=== Supported Versions
+
+Ballot is written using Ruby 2 syntax and supports Active Record 4, Active
+Record 5, and Sequel 4.
+
+Ballot is tested with these combinations of Ruby interpreters and ORMs:
+
+- Ruby 2.0, 2.1; ActiveRecord 4; Sequel 4
+- Ruby 2.2; ActiveRecord 4, 5; Sequel 4
+- JRuby 9.0, 9.1; ActiveRecord 4; Sequel 4
+
+=== Database Migrations
+
+Ballot uses a table (+ballot_votes+) to store all votes. When using Rails, you
+can generate the migration as normal:
+
+    rails generate ballot:install
+    rake db:migrate
+
+Performance can be increased by adding the +cached_ballot_summary+ column to
+your votable tables. This can be added with a different migration:
+
+    rails generate ballot:summary VOTABLE
+
+When not using Rails, you can use the ballot_generator binary.
+
+    ballot_generator [--orm ORM] --install
+    ballot_generator [--orm ORM] --summary NAME
+
+== Ballot Semantic Versioning
+
+Ballot uses a {Semantic Versioning}[http://semver.org/] scheme with one
+significant change:
+
+* When PATCH is zero (+0+), it will be omitted from version references.
+
+== Community and Contributing
+
+Ballot welcomes your contributions as described in
+{Contributing.md}[https://github.com/KineticCafe/ballot/blob/master/Contributing.md].
+This project, like all Kinetic Cafe {open source
+projects}[https://github.com/KineticCafe], is under the Kinetic Cafe Open
+Source {Code of Conduct}[https://github.com/KineticCafe/code-of-conduct].

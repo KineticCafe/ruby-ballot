@@ -1,4 +1,4 @@
-# -*- ruby -*-
+# frozen_string_literal: true
 
 require 'rubygems'
 require 'hoe'
@@ -12,7 +12,7 @@ Hoe.plugin :minitest
 Hoe.plugin :rubygems
 Hoe.plugin :travis
 
-spec = Hoe.spec 'sequel-voting' do
+spec = Hoe.spec 'ballot' do
   developer('Austin Ziegler', 'aziegler@kineticcafe.com')
 
   self.history_file = 'History.md'
@@ -22,10 +22,6 @@ spec = Hoe.spec 'sequel-voting' do
 
   ruby20!
 
-  extra_deps << ['sequel', '~> 4.0']
-  extra_deps << ['sequel_polymorphic', '~> 0.2']
-
-  extra_dev_deps << ['sqlite3', '~>1.3']
   extra_dev_deps << ['rake', '>= 10.0']
   extra_dev_deps << ['rdoc', '~> 4.2']
   extra_dev_deps << ['hoe-doofus', '~> 1.0']
@@ -39,23 +35,33 @@ spec = Hoe.spec 'sequel-voting' do
   extra_dev_deps << ['minitest-focus', '~> 1.1']
   extra_dev_deps << ['minitest-hooks', '~> 1.4']
   extra_dev_deps << ['minitest-moar', '~> 0.0']
-  extra_dev_deps << ['minitest-pretty_diff', '~> 0.1']
   extra_dev_deps << ['simplecov', '~> 0.7']
 end
 
-module Hoe::Publish
-  alias_method :original_make_rdoc_cmd, :make_rdoc_cmd
+ENV['RDOCOPT'] = "-x #{%r{lib/generators/.+/templates/.+\.rb}}"
+ENV['RUBYOPT'] = '-W0'
+
+module Hoe::Publish #:nodoc:
+  alias __make_rdoc_cmd__ballot__ make_rdoc_cmd
 
   def make_rdoc_cmd(*extra_args) # :nodoc:
-    spec.extra_rdoc_files.reject! { |f| f == 'Manifest.txt' }
-    original_make_rdoc_cmd(*extra_args)
+    spec.extra_rdoc_files.delete_if { |f| f == 'Manifest.txt' }
+    __make_rdoc_cmd__ballot__(*extra_args)
   end
 end
 
 namespace :test do
-  task :coverage do
-    spec.test_prelude = %q(load ".simplecov-prelude.rb")
+  if File.exist?('.simplecov-prelude.rb')
+    task :coverage do
+      spec.test_prelude = 'load ".simplecov-prelude.rb"'
 
+      Rake::Task['test'].execute
+    end
+  end
+
+  desc 'Include the generator tests'
+  task :generators do
+    ENV['TEST_GENERATORS'] = '1'
     Rake::Task['test'].execute
   end
 
@@ -63,5 +69,3 @@ namespace :test do
 end
 
 CLOBBER << 'tmp'
-
-# vim: syntax=ruby

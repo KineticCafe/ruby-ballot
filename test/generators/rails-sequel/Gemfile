@@ -1,0 +1,16 @@
+source 'https://rubygems.org'
+
+gem 'rails', ENV['RAILS_VERSION']
+
+platforms :jruby do
+  gem 'jdbc-sqlite3'
+end
+
+platforms :mri do
+  gem 'sqlite3'
+end
+
+gem 'sequel', ENV['ORM_VERSION']
+gem 'sequel-rails', '~> 0.9' # TODO: This should be variant on versions, probably
+
+gem 'ballot', path: '../../..'

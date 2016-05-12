@@ -5,4 +5,6 @@ require "autotest/restart"
 Autotest.add_hook :initialize do |at|
   # .minitest.rb ensures that the gem version of minitest is used.
   at.testlib = ".minitest.rb"
+  at.add_exception /^\.\/test\/support/
+  at.add_exception /^\.\/test\/generators\/rails\-/
 end

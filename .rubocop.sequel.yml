@@ -1,0 +1,28 @@
+# Disabling all the ActiveRecord-specific cops because this application is
+# based on Sequel.
+
+# Rails/FindBy:
+#   Enabled: false
+
+# Rails/FindEach:
+#   Enabled: false
+
+# Rails/HasAndBelongsToMany:
+#   Enabled: false
+
+# Rails/ReadWriteAttribute:
+#   Enabled: false
+
+# Rails/ScopeArgs:
+#   Enabled: false
+
+# Rails/Validation:
+#   Enabled: false
+
+# Style/AlignHash:
+#   Exclude:
+#     - db/migrate/*
+
+# Style/SymbolArray:
+#   Exclude:
+#     - db/migrate/*

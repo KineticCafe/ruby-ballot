@@ -1,10 +1,32 @@
 # frozen_string_literal: true
-require 'sqlite3'
+
 require 'sequel'
 
-DB = Sequel.sqlite
+DB = if RUBY_ENGINE == 'jruby'
+       Sequel.connect('jdbc:sqlite::memory:')
+     else
+       Sequel.sqlite
+     end
 
-DB.create_table? :votes do
+class SQLLogger
+  class << self
+    def sqls
+      Thread.current['sqls'] ||= []
+    end
+
+    def method_missing(_, msg)
+      sqls << msg
+    end
+
+    def clear
+      sqls.clear
+    end
+  end
+end
+
+DB.loggers << SQLLogger
+
+DB.create_table? :ballot_votes do
   primary_key :id
   Integer :votable_id
   String :votable_type
@@ -12,9 +34,9 @@ DB.create_table? :votes do
   Integer :voter_id
   String :voter_type
 
-  Boolean :vote_flag
-  String :vote_scope
-  Integer :vote_weight
+  Boolean :vote
+  String :scope
+  Integer :weight
 
   DateTime :created_at, null: false, default: Sequel::CURRENT_TIMESTAMP
   DateTime :updated_at, null: false, default: Sequel::CURRENT_TIMESTAMP
@@ -42,55 +64,101 @@ DB.create_table? :votable_caches do
 
   if Sequel.respond_to?(:pg_json)
     if respond_to?(:jsonb)
-      jsonb :cached_vote_summary
+      jsonb :cached_ballot_summary
     else
-      json :cached_vote_summary
+      json :cached_ballot_summary
     end
   else
-    String :cached_vote_summary
+    String :cached_ballot_summary
   end
 end
 
-require 'sequel/voting'
+require 'ballot/sequel'
 
-class Voter < Sequel::Model
-  plugin :voter
+class SequelVoter < Sequel::Model(:voters)
+  plugin :ballot_voter
 end
 
-class NotVoter < Sequel::Model
+class SequelNotVoter < Sequel::Model(:not_voters)
 end
 
-class Votable < Sequel::Model
-  plugin :votable
+class SequelVotable < Sequel::Model(:votables)
+  plugin :ballot_votable
 end
 
-class NotVotable < Sequel::Model
+class SequelNotVotable < Sequel::Model(:not_votables)
 end
 
-class VotableVoter < Sequel::Model
-  plugin :voter
-  plugin :votable
+class SequelVotableVoter < Sequel::Model(:votable_voters)
+  plugin :ballot_voter
+  plugin :ballot_votable
 end
 
-class StiVotable < Sequel::Model
+class SequelStiVotable < Sequel::Model(:sti_votables)
   plugin :single_table_inheritance, :type
-  plugin :votable
+  plugin :ballot_votable
 end
 
-class ChildOfStiVotable < StiVotable
+class SequelChildOfStiVotable < SequelStiVotable
 end
 
-class StiNotVotable < Sequel::Model
+class SequelStiNotVotable < Sequel::Model(:sti_not_votables)
   plugin :single_table_inheritance, :type
 end
 
-class VotableChildOfStiNotVotable < StiNotVotable
-  plugin :votable
+class SequelVotableChildOfStiNotVotable < SequelStiNotVotable
+  plugin :ballot_votable
 end
 
-class VotableCache < Sequel::Model
-  plugin :votable
+class SequelVotableCache < Sequel::Model(:votable_caches)
+  plugin :ballot_votable
 end
 
-class ABoringClass
+class SequelABoringClass
+end
+
+class Minitest::SequelSpec < Minitest::HooksSpec
+  parallelize_me! unless RUBY_ENGINE == 'jruby'
+
+  register_spec_type(/Sequel/, self)
+
+  def around
+    Sequel::Model.db.transaction(rollback: :always, auto_savepoint: true) { super }
+  end
+
+  def capture_sql
+    SQLLogger.clear
+    yield
+    SQLLogger.sqls.dup
+  ensure
+    SQLLogger.clear
+  end
+
+  def votable_dataset(votable)
+    votable.ballots_for_dataset
+  end
+
+  def voter_dataset(voter)
+    voter.ballots_by_dataset
+  end
+
+  def ballot_type_name(item)
+    Ballot::Sequel.type_name(item)
+  end
+
+  let(:voter) { SequelVoter.create(name: 'I can vote!') }
+  let(:voter2) { SequelVoter.create(name: 'I, too, can vote!') }
+  let(:not_voter) { SequelNotVoter.create(name: 'I cannot vote!') }
+
+  let(:votable) { SequelVotable.create(name: 'a votable model') }
+  let(:votable2) { SequelVotable.create(name: 'a second votable model') }
+  let(:votable_cache) { SequelVotableCache.create(name: 'a votable model with caching') }
+  let(:sti_votable) { SequelStiVotable.create(name: 'a votable STI model') }
+  let(:child_of_sti_votable) {
+    SequelChildOfStiVotable.create(name: 'a votable STI child model')
+  }
+  let(:votable_child_of_sti_not_votable) {
+    SequelVotableChildOfStiNotVotable.create(name: 'a votable STI child of a non-votable')
+  }
+  let(:not_votable) { SequelNotVotable.create(name: 'a non-votable model') }
 end

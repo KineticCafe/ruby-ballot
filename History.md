@@ -1,4 +1,4 @@
-### 1.0 / YYYY-MM-DD
+### 1.0 / 2016-05-12
 
 *   1 major enhancement!
 
